@@ -1,0 +1,10 @@
+.git
+.github
+node_modules
+.next
+bin
+obj
+_ref_backend
+*.log
+.DS_Store
+Thumbs.db

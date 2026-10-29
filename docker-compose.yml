@@ -1,0 +1,77 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: wahana_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-wahanacrm}
+      POSTGRES_USER: ${POSTGRES_USER:-wahana}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-WahanaSecurePassword2026!}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - internal_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-wahana} -d ${POSTGRES_DB:-wahanacrm}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: ./apps/api
+      dockerfile: Dockerfile
+    container_name: wahana_api
+    restart: unless-stopped
+    environment:
+      ConnectionStrings__DefaultConnection: "Host=postgres;Port=5432;Database=${POSTGRES_DB:-wahanacrm};Username=${POSTGRES_USER:-wahana};Password=${POSTGRES_PASSWORD:-WahanaSecurePassword2026!};"
+      Jwt__Key: ${JWT_KEY:-WahanaTravelSuperSecureEnterpriseJwtSecretKey2026!!}
+      Jwt__Issuer: ${JWT_ISSUER:-WahanaTravel}
+      Jwt__Audience: ${JWT_AUDIENCE:-WahanaTravelApp}
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: "http://+:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - internal_network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/healthz || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  web:
+    build:
+      context: ./apps/web
+      dockerfile: Dockerfile
+    container_name: wahana_web
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_PORT:-3000}:3000"
+    environment:
+      INTERNAL_API_URL: ${INTERNAL_API_URL:-http://api:8080}
+      NODE_ENV: production
+      PORT: 3000
+    depends_on:
+      api:
+        condition: service_healthy
+    networks:
+      - internal_network
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/ || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+
+volumes:
+  postgres_data:
+    name: wahana_postgres_data
+
+networks:
+  internal_network:
+    name: wahana_internal_network
+    driver: bridge
